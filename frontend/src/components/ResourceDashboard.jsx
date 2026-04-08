@@ -7,9 +7,9 @@ export default function ResourceDashboard() {
   const [optimized, setOptimized] = useState(false);
   
   const resources = [
-    { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4" />, color: 'bg-blue-500' },
-    { name: 'Fire Engines', count: 12, icon: <Truck className="w-4 h-4" />, color: 'bg-red-500' },
-    { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4" />, color: 'bg-yellow-500' },
+    { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4" />, colorClass: 'bg-blue-500/20 text-blue-400' },
+    { name: 'Fire Engines', count: 12, icon: <Truck className="w-4 h-4" />, colorClass: 'bg-red-500/20 text-red-400' },
+    { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4" />, colorClass: 'bg-yellow-500/20 text-yellow-400' },
   ];
 
   const handleOptimize = () => {
@@ -43,7 +43,7 @@ export default function ResourceDashboard() {
         {resources.map((res, i) => (
           <div key={i} className="flex items-center justify-between bg-dark-800 p-3 rounded-xl border border-white/5 cursor-grab active:cursor-grabbing hover:bg-dark-700 transition-colors">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${res.color}/20 text-white`}>
+              <div className={`p-2 rounded-lg ${res.colorClass}`}>
                 {res.icon}
               </div>
               <span className="text-sm font-medium">{res.name}</span>
