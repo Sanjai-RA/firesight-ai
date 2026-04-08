@@ -1,12 +1,28 @@
+"""
+FireSight AI — FastAPI Backend
+Spatio-temporal wildfire prediction with resource optimization.
+
+Endpoints
+─────────
+GET  /                       health check
+POST /predict                12-hour spread forecast
+POST /predict/multi          multi-ignition spread forecast
+POST /optimize               resource allocation optimization
+POST /simulate               stateless simulate (same as predict)
+POST /assistant              rule-based + AI copilot bridge
+GET  /terrain                terrain metadata for current grid
+WS   /ws/fire-data           real-time WebSocket stream
+"""
+
 import asyncio
 import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Dict, Any, List, Optional
 from mock_model import MockFireModel
-from typing import Dict, Any
 
-app = FastAPI(title="FireSight AI API")
+app = FastAPI(title="FireSight AI API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,31 +32,72 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Singleton model (terrain is generated once, spread is computed per request)
 fire_model = MockFireModel()
 
+
+# ── REQUEST / RESPONSE MODELS ──────────────────────────────────────────────────
+
 class PredictRequest(BaseModel):
-    ignition_x: int = 10
-    ignition_y: int = 10
-    wind_speed: float = 20.0
-    wind_dir: float = 45.0
-    hours: int = 12
+    ignition_x:   int   = Field(default=20, ge=0, lt=40)
+    ignition_y:   int   = Field(default=20, ge=0, lt=40)
+    wind_speed:   float = Field(default=35.0, ge=0, le=150)
+    wind_dir:     float = Field(default=45.0, ge=0, le=360)
+    hours:        int   = Field(default=12, ge=1, le=12)
+    temperature:  float = Field(default=30.0)
+    humidity:     float = Field(default=15.0, ge=0, le=100)
+
+
+class MultiIgnitionRequest(BaseModel):
+    ignitions:    List[Dict[str, int]]
+    wind_speed:   float = 35.0
+    wind_dir:     float = 45.0
+    hours:        int   = 12
+    temperature:  float = 30.0
+    humidity:     float = 15.0
+
 
 class OptimizeRequest(BaseModel):
-    prediction_grid: list
+    prediction_grid:     List[Dict[str, Any]]
     available_resources: Dict[str, int]
+
 
 class AssistantRequest(BaseModel):
     message: str
     context: Dict[str, Any] = {}
 
+
 class AssistantResponse(BaseModel):
-    message: str
-    action: str = None
-    mapHighlight: Dict[str, float] = None
+    message:       str
+    action:        Optional[str]     = None
+    mapHighlight:  Optional[Dict[str, float]] = None
+    metrics:       Optional[Dict[str, Any]]   = None
+
+
+# ── ROUTES ────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def read_root():
-    return {"message": "FireSight AI Backend is running."}
+    return {
+        "message": "FireSight AI v2 — Rothermel spread model active.",
+        "endpoints": ["/predict", "/predict/multi", "/optimize", "/simulate", "/assistant", "/terrain"],
+    }
+
+
+@app.get("/terrain")
+def get_terrain():
+    """Return fuel-type and elevation metadata for the active grid."""
+    terrain = fire_model._terrain
+    cells = []
+    for y in range(fire_model.grid_size):
+        for x in range(fire_model.grid_size):
+            cells.append({
+                "x": x, "y": y,
+                "fuel_type": terrain["fuel"][y][x],
+                "elevation_m": round(terrain["slope"][y][x]["elevation"], 1),
+            })
+    return {"grid_size": fire_model.grid_size, "cells": cells}
+
 
 @app.post("/predict")
 def predict(req: PredictRequest):
@@ -48,68 +105,164 @@ def predict(req: PredictRequest):
         ignition={"x": req.ignition_x, "y": req.ignition_y},
         wind_speed=req.wind_speed,
         wind_dir_deg=req.wind_dir,
-        hours=req.hours
+        hours=req.hours,
+        temperature=req.temperature,
+        humidity=req.humidity,
     )
-    return {"grid": grid}
+    area   = sum(1 for c in grid if c["intensity"] > 0)
+    hot    = sum(1 for c in grid if c["intensity"] > 0.7)
+    structs = sum(1 for c in grid if c["intensity"] > 0.2 and c["fuel_type"] == 4)
+    return {
+        "grid": grid,
+        "summary": {
+            "hours_forecast": req.hours,
+            "fire_area_cells": area,
+            "hotspot_cells": hot,
+            "structures_at_risk": structs,
+        },
+    }
+
+
+@app.post("/predict/multi")
+def predict_multi(req: MultiIgnitionRequest):
+    """Spread model seeded with multiple simultaneous ignition points."""
+    from mock_model import RothermelSpreadModel, apply_geo_coords
+    spreader = RothermelSpreadModel(fire_model._terrain)
+    grid = spreader.compute(
+        ignitions=req.ignitions,
+        wind_speed=req.wind_speed,
+        wind_dir_deg=req.wind_dir,
+        temperature=req.temperature,
+        humidity=req.humidity,
+        hours=req.hours,
+    )
+    grid = apply_geo_coords(grid)
+    return {"grid": grid, "ignition_count": len(req.ignitions)}
+
 
 @app.post("/optimize")
 def optimize(req: OptimizeRequest):
-    result = fire_model.optimize_resources(req.prediction_grid, req.available_resources)
-    return result
+    return fire_model.optimize_resources(req.prediction_grid, req.available_resources)
+
 
 @app.post("/simulate")
 def simulate(req: PredictRequest):
-    # For a stateless API, simulate is similar to predict but could update internal simulation state
     grid = fire_model.predict_spread(
         ignition={"x": req.ignition_x, "y": req.ignition_y},
         wind_speed=req.wind_speed,
         wind_dir_deg=req.wind_dir,
-        hours=req.hours
+        hours=req.hours,
+        temperature=req.temperature,
+        humidity=req.humidity,
     )
     return {"status": "Simulation updated", "grid": grid}
 
+
 @app.post("/assistant", response_model=AssistantResponse)
 def assistant(req: AssistantRequest):
-    msg = req.message.lower()
-    wind_speed = req.context.get("windSpeed", 20)
-    wind_dir = req.context.get("windDir", 45)
-    
-    if "predict" in msg or "spread" in msg:
-        return AssistantResponse(
-            message=f"I am executing the predictive spread engine. Given current telemetry parameters (wind: {wind_speed}km/h at {wind_dir}°), the fire is likely to expand rapidly downwind.",
-            action="predict"
+    msg        = req.message.lower()
+    wind_speed = req.context.get("windSpeed", 35)
+    wind_dir   = req.context.get("windDir", 45)
+    temp       = req.context.get("temperature", 30)
+    humidity   = req.context.get("humidity", 15)
+
+    # Quick spread forecast on-demand
+    if "predict" in msg or "spread" in msg or "trajectory" in msg:
+        grid = fire_model.predict_spread(
+            ignition={"x": 20, "y": 20},
+            wind_speed=wind_speed, wind_dir_deg=wind_dir,
+            temperature=temp, humidity=humidity, hours=12,
         )
-    elif "optimize" in msg or "resources" in msg:
+        area   = sum(1 for c in grid if c["intensity"] > 0)
+        hot    = sum(1 for c in grid if c["intensity"] > 0.7)
+        structs = sum(1 for c in grid if c["intensity"] > 0.2 and c["fuel_type"] == 4)
+        compass = _deg_to_compass(wind_dir)
         return AssistantResponse(
-            message="Calculating optimal strategic distribution. I recommend maximizing aerial assault on the advancing perimeter while deploying ground crews to protect critical infrastructure assets.",
-            action="optimize"
+            message=(
+                f"12-hour spread analysis complete. At {wind_speed} km/h from {compass} ({wind_dir}°), "
+                f"the fire will expand to approximately {area * 0.25:.1f} km² with {hot} high-intensity "
+                f"hotspots. {structs} structures enter the perimeter. "
+                f"Recommend immediate aerial retardant on the leading edge."
+            ),
+            action="predict",
+            metrics={"area_km2": area * 0.25, "hotspots": hot, "structures": structs},
         )
-    elif "high risk" in msg or "danger" in msg or "zones" in msg:
+
+    elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg:
+        grid = fire_model.predict_spread(
+            ignition={"x": 20, "y": 20},
+            wind_speed=wind_speed, wind_dir_deg=wind_dir,
+            temperature=temp, humidity=humidity, hours=12,
+        )
+        result = fire_model.optimize_resources(
+            grid, {"air_tankers": 4, "fire_engines": 10, "ground_crews": 8, "helicopters": 3}
+        )
+        m = result["metrics"]
         return AssistantResponse(
-            message="Focusing on Zone Alpha. Structural layout and dry vegetation density make this region critically volatile today.",
+            message=(
+                f"Optimization complete. {m['resources_deployed']} units deployed. "
+                f"Projected damage reduction: {m['damage_reduction_pct']}%. "
+                f"Priority targets: {m['structures_at_risk']} structures, est. {m['lives_at_risk_est']} lives at risk. "
+                f"Air tankers assigned to leading fire perimeter; ground crews to structure protection."
+            ),
+            action="optimize",
+            metrics=m,
+        )
+
+    elif any(k in msg for k in ["danger", "high risk", "hotspot", "critical", "zone"]):
+        return AssistantResponse(
+            message=(
+                "High-risk zone identified at grid center (downwind sector). "
+                "Heavy timber fuel loads combined with current wind alignment create extreme ROS conditions. "
+                "Recommend backfire preparation on eastern flank."
+            ),
             action="highlight",
-            mapHighlight={"lat": 37.7749, "lng": -122.4194}
+            mapHighlight={"lat": 37.7749, "lng": -122.4194},
         )
+
+    elif "evacuat" in msg or "escape" in msg:
+        return AssistantResponse(
+            message=(
+                f"Evacuation corridors: given wind at {wind_dir}°, safest routes are perpendicular to spread axis. "
+                "Recommend northward evacuation for zones within 2km of ignition. "
+                "Trigger reverse-911 for all structure cells in the predicted 6-hour perimeter."
+            ),
+            action=None,
+        )
+
     else:
         return AssistantResponse(
-            message="System is online. You can command me to 'predict fire spread', 'optimize resources', or 'show high-risk zones'.",
-            action=None
+            message=(
+                "FireSight AI v2 online. Commands: "
+                "'predict spread' · 'optimize resources' · 'show high-risk zones' · "
+                "'evacuation routes' · 'deploy air tankers'"
+            ),
+            action=None,
         )
+
+
+def _deg_to_compass(deg: float) -> str:
+    dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"]
+    return dirs[round(deg / 22.5) % 16]
+
+
+# ── WEBSOCKET ─────────────────────────────────────────────────────────────────
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active: list[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+    async def connect(self, ws: WebSocket):
+        await ws.accept()
+        self.active.append(ws)
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def disconnect(self, ws: WebSocket):
+        self.active.remove(ws)
 
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            await connection.send_text(message)
+    async def broadcast(self, msg: str):
+        for ws in self.active:
+            await ws.send_text(msg)
+
 
 manager = ConnectionManager()
 
@@ -119,24 +272,28 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         hour = 1
         while True:
-            # Simulate progression over time
             grid = fire_model.predict_spread(
-                ignition={"x": 10, "y": 10},
-                wind_speed=25.0,
-                wind_dir_deg=90.0,
-                hours=hour
+                ignition={"x": 20, "y": 20},
+                wind_speed=35.0, wind_dir_deg=45.0,
+                temperature=30.0, humidity=15.0,
+                hours=hour,
             )
-            # Send the grid update
-            await websocket.send_text(json.dumps({"hour": hour, "grid": grid}))
-            
-            hour += 1
-            if hour > 12:
-                hour = 1 # loop simulation
-                
-            await asyncio.sleep(2) # send update every 2 seconds
+            area   = sum(1 for c in grid if c["intensity"] > 0)
+            hot    = sum(1 for c in grid if c["intensity"] > 0.7)
+            structs = sum(1 for c in grid if c["intensity"] > 0.2 and c["fuel_type"] == 4)
+
+            await websocket.send_text(json.dumps({
+                "hour": hour,
+                "grid": grid,
+                "summary": {"fire_area_cells": area, "hotspot_cells": hot, "structures_at_risk": structs},
+            }))
+
+            hour = (hour % 12) + 1
+            await asyncio.sleep(1.5)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
