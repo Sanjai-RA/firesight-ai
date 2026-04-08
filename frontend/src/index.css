@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .glass {
+    @apply bg-dark-800/60 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+  
+  .glass-panel {
+    @apply bg-dark-900/80 backdrop-blur-lg border border-white/5 shadow-2xl rounded-2xl;
+  }
+}
+
+body {
+  @apply m-0 p-0 overflow-hidden bg-dark-900 text-gray-100;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/20 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/40;
+}
+
+/* Mapbox overrides to keep it dark */
+.mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right {
+  display: none !important;
+}
