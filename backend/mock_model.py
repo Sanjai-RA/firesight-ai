@@ -14,6 +14,7 @@ import heapq
 from typing import List, Dict, Any, Tuple
 
 
+<<<<<<< HEAD
 # ── CONSTANTS ──────────────────────────────────────────────────────────────────
 GRID_SIZE       = 40          # cells
 A_FACTOR        = 0.0165      # base Rothermel spread constant
@@ -85,6 +86,8 @@ def generate_terrain(seed: int = 42) -> Dict[str, Any]:
                 row.append(4)   # structure
             elif r > 0.70:
                 row.append(3)   # heavy timber
+            elif r > 0.40:
+                row.append(2)   # shrub
             elif r > 0.40:
                 row.append(2)   # shrub
             else:
@@ -327,6 +330,8 @@ class MockFireModel:
         hours: int = 12,
         temperature: float = 30.0,
         humidity: float = 15.0,
+        base_lat: float = 37.7749,
+        base_lng: float = -122.4194,
     ) -> List[Dict[str, Any]]:
         grid = self._spreader.compute(
             ignitions=[ignition],
@@ -336,7 +341,7 @@ class MockFireModel:
             humidity=humidity,
             hours=hours,
         )
-        return apply_geo_coords(grid, self.base_lat, self.base_lng, self.lat_step, self.lng_step)
+        return apply_geo_coords(grid, base_lat, base_lng, self.lat_step, self.lng_step)
 
     def optimize_resources(
         self,

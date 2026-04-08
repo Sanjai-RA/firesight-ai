@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import Map, { Source, Layer, NavigationControl } from 'react-map-gl';
+import Map, { Source, Layer, NavigationControl, Marker, GeolocateControl } from 'react-map-gl';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || 'pk.dummy';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
+const WS_URL_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
 
 export default function InteractiveMap({ fireData, setFireData, params }) {
   const [viewState, setViewState] = useState({
@@ -12,10 +13,44 @@ export default function InteractiveMap({ fireData, setFireData, params }) {
     pitch: 45,
     bearing: -17.6
   });
+  
+  const [baseLocation, setBaseLocation] = useState({ lat: 37.7749, lng: -122.4194 });
 
   useEffect(() => {
-    // Connect to WebSocket for real-time fire spread data
-    const ws = new WebSocket(WS_URL);
+    const fetchIPLocation = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          setBaseLocation({ lat: data.latitude, lng: data.longitude });
+          setViewState(prev => ({ ...prev, latitude: data.latitude, longitude: data.longitude }));
+        }
+      } catch (err) {
+        console.error('IP Fallback failed', err);
+      }
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setBaseLocation({ lat: latitude, lng: longitude });
+          setViewState(prev => ({ ...prev, latitude, longitude }));
+        },
+        (err) => {
+          console.warn('Browser GPS unavailable, using IP Fallback...', err);
+          fetchIPLocation();
+        },
+        { timeout: 5000 }
+      );
+    } else {
+      fetchIPLocation();
+    }
+  }, []);
+
+  useEffect(() => {
+    // Connect to WebSocket for real-time fire spread data with dynamic geo-location
+    const ws = new WebSocket(`${WS_URL_BASE}?lat=${baseLocation.lat}&lng=${baseLocation.lng}`);
     
     ws.onmessage = (event) => {
       try {
@@ -28,7 +63,7 @@ export default function InteractiveMap({ fireData, setFireData, params }) {
       }
     };
     return () => ws.close();
-  }, [setFireData]);
+  }, [setFireData, baseLocation]);
 
   useEffect(() => {
     const handleFocus = (e) => {
@@ -87,11 +122,24 @@ export default function InteractiveMap({ fireData, setFireData, params }) {
     <Map
       {...viewState}
       onMove={evt => setViewState(evt.viewState)}
-      mapStyle="mapbox://styles/mapbox/dark-v11"
-      mapboxAccessToken={MAPBOX_TOKEN}
+      mapLib={maplibregl}
+      mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
       interactiveLayerIds={['fire-heatmap']}
     >
       <NavigationControl position="top-right" />
+      <GeolocateControl 
+        position="top-right" 
+        trackUserLocation={true} 
+        showUserHeading={true}
+      />
+      
+      {/* Ignition Point Marker */}
+      <Marker longitude={baseLocation.lng} latitude={baseLocation.lat} anchor="center">
+        <div className="relative flex items-center justify-center">
+          <div className="absolute w-12 h-12 bg-fire-500/50 rounded-full animate-ping"></div>
+          <div className="w-4 h-4 bg-fire-600 rounded-full border-[3px] border-white shadow-[0_0_15px_rgba(255,69,0,0.8)] z-10"></div>
+        </div>
+      </Marker>
       
       {geojson && (
         <Source id="fire-data" type="geojson" data={geojson}>

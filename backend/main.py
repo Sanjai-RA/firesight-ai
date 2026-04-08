@@ -46,6 +46,8 @@ class PredictRequest(BaseModel):
     hours:        int   = Field(default=12, ge=1, le=12)
     temperature:  float = Field(default=30.0)
     humidity:     float = Field(default=15.0, ge=0, le=100)
+    base_lat:     float = 37.7749
+    base_lng:     float = -122.4194
 
 
 class MultiIgnitionRequest(BaseModel):
@@ -56,6 +58,7 @@ class MultiIgnitionRequest(BaseModel):
     temperature:  float = 30.0
     humidity:     float = 15.0
 
+>>>>>>> 0dee132 (feat: integrate maplibre, dynamic GPS location tracking, and IP fallback)
 
 class OptimizeRequest(BaseModel):
     prediction_grid:     List[Dict[str, Any]]
@@ -108,6 +111,8 @@ def predict(req: PredictRequest):
         hours=req.hours,
         temperature=req.temperature,
         humidity=req.humidity,
+        base_lat=req.base_lat,
+        base_lng=req.base_lng
     )
     area   = sum(1 for c in grid if c["intensity"] > 0)
     hot    = sum(1 for c in grid if c["intensity"] > 0.7)
@@ -154,6 +159,8 @@ def simulate(req: PredictRequest):
         hours=req.hours,
         temperature=req.temperature,
         humidity=req.humidity,
+        base_lat=req.base_lat,
+        base_lng=req.base_lng
     )
     return {"status": "Simulation updated", "grid": grid}
 
@@ -187,7 +194,6 @@ def assistant(req: AssistantRequest):
             action="predict",
             metrics={"area_km2": area * 0.25, "hotspots": hot, "structures": structs},
         )
-
     elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg:
         grid = fire_model.predict_spread(
             ignition={"x": 20, "y": 20},
@@ -217,7 +223,7 @@ def assistant(req: AssistantRequest):
                 "Recommend backfire preparation on eastern flank."
             ),
             action="highlight",
-            mapHighlight={"lat": 37.7749, "lng": -122.4194},
+            mapHighlight={"lat": req.context.get("baseLat", 37.7749), "lng": req.context.get("baseLng", -122.4194)}
         )
 
     elif "evacuat" in msg or "escape" in msg:
@@ -267,7 +273,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @app.websocket("/ws/fire-data")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, lat: float = 37.7749, lng: float = -122.4194):
     await manager.connect(websocket)
     try:
         hour = 1
@@ -277,6 +283,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 wind_speed=35.0, wind_dir_deg=45.0,
                 temperature=30.0, humidity=15.0,
                 hours=hour,
+                base_lat=lat,
+                base_lng=lng
             )
             area   = sum(1 for c in grid if c["intensity"] > 0)
             hot    = sum(1 for c in grid if c["intensity"] > 0.7)
