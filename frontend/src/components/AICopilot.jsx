@@ -87,9 +87,34 @@ export default function AICopilot({ params, onActionTriggered }) {
         }, 1000);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Copilot backend connection failed, falling back to local simulation mode:", err);
+      
+      // Fallback local logic for demo/offline purposes
+      let action = null;
+      let mapHighlight = null;
+      let responseText = "Agent Online [Offline Mode]. Monitoring wind vectors...";
+      const t = text.toLowerCase();
+
+      if (t.includes('predict') || t.includes('spread')) {
+        responseText = `Predicted spread trajectory plotted based on current ${params.windSpeed || 20}km/h wind speeds. Escort perimeters highlighted.`;
+        action = 'predict';
+      } else if (t.includes('optim') || t.includes('resource') || t.includes('asset')) {
+        responseText = `Simulating resource reallocation. Redirecting air tankers to the active front. Optimizing ground payload.`;
+        action = 'optimize';
+      } else if (t.includes('hotspot') || t.includes('risk') || t.includes('zone')) {
+        responseText = `Locating high-risk focal points based on terrain and weather telemetry. Check map for details.`;
+        action = 'highlight';
+        mapHighlight = { lat: 37.7749, lng: -122.4194 }; // mock highlight
+      }
+
       setIsTyping(false);
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, I am having trouble connecting to the intelligence core.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', text: responseText }]);
+      
+      if (action) {
+        setTimeout(() => {
+          onActionTriggered(action, mapHighlight);
+        }, 1000);
+      }
     }
   };
 

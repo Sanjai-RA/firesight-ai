@@ -7,9 +7,9 @@ export default function ResourceDashboard() {
   const [optimized, setOptimized] = useState(false);
   
   const resources = [
-    { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4" />, colorClass: 'bg-blue-500/20 text-blue-400' },
-    { name: 'Fire Engines', count: 12, icon: <Truck className="w-4 h-4" />, colorClass: 'bg-red-500/20 text-red-400' },
-    { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4" />, colorClass: 'bg-yellow-500/20 text-yellow-400' },
+    { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4 text-white" />, colorClass: 'bg-blue-500/80 shadow-[0_0_10px_rgba(59,130,246,0.6)]' },
+    { name: 'Fire Engines', count: 12, icon: <Truck className="w-4 h-4 text-white" />, colorClass: 'bg-red-500/80 shadow-[0_0_10px_rgba(239,68,68,0.6)]' },
+    { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4 text-white" />, colorClass: 'bg-yellow-600/80 shadow-[0_0_10px_rgba(202,138,4,0.6)]' },
   ];
 
   const handleOptimize = () => {

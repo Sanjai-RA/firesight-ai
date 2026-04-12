@@ -10,8 +10,20 @@ export default function AIPredictionPanel({ fireData, params }) {
   const riskLevel = maxIntensity > 0.8 ? 'CRITICAL' : maxIntensity > 0.5 ? 'HIGH' : maxIntensity > 0 ? 'MODERATE' : 'LOW';
   const riskColor = riskLevel === 'CRITICAL' ? 'text-red-500' : riskLevel === 'HIGH' ? 'text-fire-500' : 'text-yellow-500';
 
-  // Calculate generic direction based on spread. Since we mock, we just show params.windDir
+  const getCompassDirection = (deg) => {
+    const dirs = ["North", "North-East", "East", "South-East", "South", "South-West", "West", "North-West"];
+    return dirs[Math.round(deg / 45) % 8];
+  };
+
   const spreadDirection = params.windDir;
+  
+  // Create a dynamic intensity sequence influenced by the wind speed to make it look realistic and dynamic
+  const dynamicIntensities = Array.from({ length: 12 }).map((_, i) => {
+    let base = 20 + (i * 6);
+    let fluctuations = Math.sin(i + (params.windSpeed * 0.1)) * 10;
+    let value = Math.max(0, Math.min(100, base + fluctuations));
+    return value;
+  });
 
   return (
     <motion.div 
@@ -32,7 +44,7 @@ export default function AIPredictionPanel({ fireData, params }) {
         <div className="bg-dark-800/80 rounded-xl p-4 border border-white/10 shadow-lg">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">AI Forecast Analysis</h3>
           <p className="text-sm text-gray-200 leading-relaxed">
-            The fire is projected to spread <strong className="text-white">North-East</strong> driven by <strong className="text-white">{params.windSpeed} km/h</strong> winds. 
+            The fire is projected to spread <strong className="text-white">{getCompassDirection(params.windDir)}</strong> driven by <strong className="text-white">{params.windSpeed} km/h</strong> winds. 
             Immediate risk classified as <strong className={`${riskColor} font-bold`}>{riskLevel}</strong> for downtown sectors.
           </p>
         </div>
@@ -55,12 +67,12 @@ export default function AIPredictionPanel({ fireData, params }) {
 
         {/* Intensity Graph Mock */}
         <div className="bg-dark-800/80 rounded-xl p-4 border border-white/10 shadow-lg">
-           <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-4">
             <div className="text-xs font-bold text-gray-400 uppercase">12-Hour Spread Intensity</div>
             <TrendingUp className="w-4 h-4 text-gray-500" />
           </div>
           <div className="h-28 flex items-end gap-1.5 mb-2">
-            {[20, 30, 45, 60, 75, 80, 85, 90, 88, 92, 95, 95].map((val, i) => (
+            {dynamicIntensities.map((val, i) => (
               <div 
                 key={i} 
                 className="w-full relative group"
