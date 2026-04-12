@@ -104,7 +104,11 @@ export default function AICopilot({ params, onActionTriggered }) {
       } else if (t.includes('hotspot') || t.includes('risk') || t.includes('zone')) {
         responseText = `Locating high-risk focal points based on terrain and weather telemetry. Check map for details.`;
         action = 'highlight';
-        mapHighlight = { lat: 37.7749, lng: -122.4194 }; // mock highlight
+        // Add a slight offset to the highlight marker to represent the 'hotspot' downwind from ignition
+        mapHighlight = { 
+          lat: params.baseLat ? (params.baseLat + 0.01) : 37.7749, 
+          lng: params.baseLng ? (params.baseLng + 0.01) : -122.4194 
+        };
       }
 
       setIsTyping(false);

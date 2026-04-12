@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 const WS_URL_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
 
-export default function InteractiveMap({ fireData, setFireData, params }) {
+export default function InteractiveMap({ fireData, setFireData, params, onLocationChange }) {
   const [viewState, setViewState] = useState({
     longitude: -122.4194,
     latitude: 37.7749,
@@ -24,6 +24,7 @@ export default function InteractiveMap({ fireData, setFireData, params }) {
         if (data.latitude && data.longitude) {
           setBaseLocation({ lat: data.latitude, lng: data.longitude });
           setViewState(prev => ({ ...prev, latitude: data.latitude, longitude: data.longitude }));
+          if (onLocationChange) onLocationChange(data.latitude, data.longitude);
         }
       } catch (err) {
         console.error('IP Fallback failed', err);
@@ -36,6 +37,7 @@ export default function InteractiveMap({ fireData, setFireData, params }) {
           const { latitude, longitude } = pos.coords;
           setBaseLocation({ lat: latitude, lng: longitude });
           setViewState(prev => ({ ...prev, latitude, longitude }));
+          if (onLocationChange) onLocationChange(latitude, longitude);
         },
         (err) => {
           console.warn('Browser GPS unavailable, using IP Fallback...', err);

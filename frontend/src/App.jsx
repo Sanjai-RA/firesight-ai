@@ -14,7 +14,9 @@ function App() {
     windSpeed: 20,
     windDir: 45,
     temperature: 30,
-    humidity: 15
+    humidity: 15,
+    baseLat: 37.7749,
+    baseLng: -122.4194
   });
 
   const handleCopilotAction = (action, mapHighlight) => {
@@ -36,6 +38,7 @@ function App() {
           fireData={fireData} 
           setFireData={setFireData} 
           params={simulationParams} 
+          onLocationChange={(lat, lng) => setSimulationParams(prev => ({ ...prev, baseLat: lat, baseLng: lng }))}
         />
       </div>
 
