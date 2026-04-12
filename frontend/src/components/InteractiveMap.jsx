@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import Map, { Source, Layer, NavigationControl, Marker, GeolocateControl } from 'react-map-gl';
 import maplibregl from 'maplibre-gl';
+import { Plane, Truck, Users } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const WS_URL_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
@@ -15,6 +16,57 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
   });
   
   const [baseLocation, setBaseLocation] = useState({ lat: 37.7749, lng: -122.4194 });
+  const [resourceMarkers, setResourceMarkers] = useState([]);
+
+  // Generate initial scattered resources when location resolves
+  useEffect(() => {
+    // Generate scattered points inside a box
+    const generateMarkers = (type, count, radiusDeg) => {
+      return Array.from({ length: count }).map((_, i) => ({
+        id: `${type}-${i}`,
+        type,
+        // Start them randomly scattered at a distance
+        lat: baseLocation.lat + (Math.random() - 0.5) * radiusDeg,
+        lng: baseLocation.lng + (Math.random() - 0.5) * radiusDeg
+      }));
+    };
+
+    const tankers = generateMarkers('plane', 3, 0.4); 
+    const engines = generateMarkers('truck', 12, 0.2);
+    const crews = generateMarkers('users', 45, 0.1);
+
+    setResourceMarkers([...tankers, ...engines, ...crews]);
+  }, [baseLocation.lat, baseLocation.lng]);
+
+  // Listen for AI optimization to simulate mobilizing units
+  useEffect(() => {
+    const handleOptimize = () => {
+      let step = 0;
+      const interval = setInterval(() => {
+        step++;
+        setResourceMarkers(prev => prev.map(m => {
+          // Create a realistic swarming effect by moving 10% closer each frame until stopping around the fire
+          const targetDist = 0.01; // stopping distance
+          const dx = baseLocation.lng - m.lng;
+          const dy = baseLocation.lat - m.lat;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          
+          if (dist <= targetDist) return m; // Reached perimeter
+
+          // Move 15% of the remaining distance per frame
+          return {
+            ...m,
+            lat: m.lat + dy * 0.15,
+            lng: m.lng + dx * 0.15
+          };
+        }));
+        if (step > 30) clearInterval(interval); // finish anim loop
+      }, 50);
+    };
+
+    window.addEventListener('ai-optimize', handleOptimize);
+    return () => window.removeEventListener('ai-optimize', handleOptimize);
+  }, [baseLocation.lat, baseLocation.lng]);
 
   useEffect(() => {
     const fetchIPLocation = async () => {
@@ -142,6 +194,22 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
           <div className="w-4 h-4 bg-fire-600 rounded-full border-[3px] border-white shadow-[0_0_15px_rgba(255,69,0,0.8)] z-10"></div>
         </div>
       </Marker>
+
+      {/* Resource Markers */}
+      {resourceMarkers.map(m => {
+        let IconElement, colorClass;
+        if (m.type === 'plane') { IconElement = Plane; colorClass = 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]'; }
+        if (m.type === 'truck') { IconElement = Truck; colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'; }
+        if (m.type === 'users') { IconElement = Users; colorClass = 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]'; }
+        
+        return (
+          <Marker key={m.id} longitude={m.lng} latitude={m.lat} anchor="center">
+            <div className={`p-1.5 rounded-full ${colorClass} text-white`}>
+              <IconElement className="w-3 h-3" />
+            </div>
+          </Marker>
+        );
+      })}
       
       {geojson && (
         <Source id="fire-data" type="geojson" data={geojson}>
