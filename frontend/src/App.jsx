@@ -26,6 +26,27 @@ function App() {
     }
   };
 
+  const handleLocationChange = async (lat, lng) => {
+    setSimulationParams(prev => ({ ...prev, baseLat: lat, baseLng: lng }));
+    
+    try {
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m`);
+      const data = await res.json();
+      
+      if (data && data.current) {
+        setSimulationParams(prev => ({
+          ...prev,
+          temperature: Math.round(data.current.temperature_2m),
+          humidity: Math.round(data.current.relative_humidity_2m),
+          windSpeed: Math.max(1, Math.round(data.current.wind_speed_10m)),
+          windDir: Math.round(data.current.wind_direction_10m)
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to fetch real-time weather API:", err);
+    }
+  };
+
   if (!appStarted) {
     return <Hero onStart={() => setAppStarted(true)} />;
   }
@@ -38,7 +59,7 @@ function App() {
           fireData={fireData} 
           setFireData={setFireData} 
           params={simulationParams} 
-          onLocationChange={(lat, lng) => setSimulationParams(prev => ({ ...prev, baseLat: lat, baseLng: lng }))}
+          onLocationChange={handleLocationChange}
         />
       </div>
 
