@@ -5,11 +5,12 @@ import AIPredictionPanel from './components/AIPredictionPanel';
 import ResourceDashboard from './components/ResourceDashboard';
 import SimulatorControls from './components/SimulatorControls';
 import AICopilot from './components/AICopilot';
-import { Flame } from 'lucide-react';
+import { Flame, MapPin } from 'lucide-react';
 
 function App() {
   const [appStarted, setAppStarted] = useState(false);
   const [fireData, setFireData] = useState([]);
+  const [locationName, setLocationName] = useState('');
   const [simulationParams, setSimulationParams] = useState({
     windSpeed: 20,
     windDir: 45,
@@ -42,8 +43,15 @@ function App() {
           windDir: Math.round(data.current.wind_direction_10m)
         }));
       }
+
+      const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+      const geoData = await geoRes.json();
+      if (geoData.city || geoData.locality || geoData.principalSubdivision) {
+        const name = geoData.city || geoData.locality || geoData.principalSubdivision;
+        setLocationName(`${name}, ${geoData.countryCode}`);
+      }
     } catch (err) {
-      console.error("Failed to fetch real-time weather API:", err);
+      console.error("Failed to fetch real-time weather API or geocoding:", err);
     }
   };
 
@@ -74,6 +82,12 @@ function App() {
           </h1>
         </div>
         <div className="flex items-center gap-4">
+          {locationName && (
+            <div className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 bg-dark-800/80 rounded-full text-gray-200 border border-white/10 shadow-lg">
+              <MapPin className="w-4 h-4 text-fire-500" />
+              {locationName}
+            </div>
+          )}
           <div className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 glass rounded-full text-green-400">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             System Live
