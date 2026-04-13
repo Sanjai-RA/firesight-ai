@@ -9,10 +9,15 @@ export default function ResourceDashboard({ fireData }) {
   
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   
+  const activeCells = (fireData || []).filter(c => c.intensity > 0).length;
+  const tankerCount = Math.max(1, Math.floor(activeCells / 50)) + 2; 
+  const engineCount = Math.max(3, Math.floor(activeCells / 20)) + 6;
+  const crewCount = Math.max(10, Math.floor(activeCells / 10)) + 20;
+
   const resources = [
-    { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4 text-white" />, colorClass: 'bg-blue-500/80 shadow-[0_0_10px_rgba(59,130,246,0.6)]' },
-    { name: 'Fire Engines', count: 12, icon: <Truck className="w-4 h-4 text-white" />, colorClass: 'bg-red-500/80 shadow-[0_0_10px_rgba(239,68,68,0.6)]' },
-    { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4 text-white" />, colorClass: 'bg-yellow-600/80 shadow-[0_0_10px_rgba(202,138,4,0.6)]' },
+    { name: 'Air Tankers', count: tankerCount, icon: <Plane className="w-4 h-4 text-white" />, colorClass: 'bg-blue-500/80 shadow-[0_0_10px_rgba(59,130,246,0.6)]' },
+    { name: 'Fire Engines', count: engineCount, icon: <Truck className="w-4 h-4 text-white" />, colorClass: 'bg-red-500/80 shadow-[0_0_10px_rgba(239,68,68,0.6)]' },
+    { name: 'Ground Crew', count: crewCount, icon: <Users className="w-4 h-4 text-white" />, colorClass: 'bg-yellow-600/80 shadow-[0_0_10px_rgba(202,138,4,0.6)]' },
   ];
 
   const handleOptimize = async () => {
@@ -27,7 +32,7 @@ export default function ResourceDashboard({ fireData }) {
         },
         body: JSON.stringify({
           prediction_grid: fireData || [],
-          available_resources: { air_tankers: 3, fire_engines: 12, ground_crews: 45, helicopters: 2 }
+          available_resources: { air_tankers: tankerCount, fire_engines: engineCount, ground_crews: crewCount, helicopters: 2 }
         })
       });
       

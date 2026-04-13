@@ -179,8 +179,10 @@ def assistant(req: AssistantRequest):
 
     # 1. Prediction / Spread Analysis
     if "predict" in msg or "spread" in msg or "trajectory" in msg or "forecast" in msg or "where" in msg:
+        ig_x = 15 + int((abs(base_lat) * 100) % 10)
+        ig_y = 15 + int((abs(base_lng) * 100) % 10)
         grid = fire_model.predict_spread(
-            ignition={"x": 20, "y": 20},
+            ignition={"x": ig_x, "y": ig_y},
             wind_speed=wind_speed, wind_dir_deg=wind_dir,
             temperature=temp, humidity=humidity, hours=12,
             base_lat=base_lat, base_lng=base_lng
@@ -203,8 +205,10 @@ def assistant(req: AssistantRequest):
         
     # 2. Resource Allocation
     elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg or "unit" in msg:
+        ig_x = 15 + int((abs(base_lat) * 100) % 10)
+        ig_y = 15 + int((abs(base_lng) * 100) % 10)
         grid = fire_model.predict_spread(
-            ignition={"x": 20, "y": 20},
+            ignition={"x": ig_x, "y": ig_y},
             wind_speed=wind_speed, wind_dir_deg=wind_dir,
             temperature=temp, humidity=humidity, hours=12,
             base_lat=base_lat, base_lng=base_lng
@@ -307,9 +311,12 @@ async def websocket_endpoint(websocket: WebSocket, lat: float = 37.7749, lng: fl
 
     try:
         hour = 1
+        # Seed ignition randomly but deterministically based on location
+        ig_x = 15 + int((abs(lat) * 100) % 10)
+        ig_y = 15 + int((abs(lng) * 100) % 10)
         while True:
             grid = fire_model.predict_spread(
-                ignition={"x": 20, "y": 20},
+                ignition={"x": ig_x, "y": ig_y},
                 wind_speed=params["wind_speed"], 
                 wind_dir_deg=params["wind_dir_deg"],
                 temperature=params["temperature"], 

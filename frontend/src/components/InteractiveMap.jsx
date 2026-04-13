@@ -20,25 +20,34 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
   const [wsInstance, setWsInstance] = useState(null);
   const [popupInfo, setPopupInfo] = useState(null);
 
-  // Generate initial scattered resources when location resolves
+  // Generate initial scattered resources
   useEffect(() => {
-    // Generate scattered points inside a box
+    const activeCells = (fireData || []).filter(c => c.intensity > 0).length;
+    // Default to some minor presence if fire hasn't fully computed yet, but scale heavily if big fire
+    const tankerCount = Math.max(1, Math.floor(activeCells / 50)) + 2; 
+    const engineCount = Math.max(3, Math.floor(activeCells / 20)) + 6;
+    const crewCount = Math.max(10, Math.floor(activeCells / 10)) + 20;
+
     const generateMarkers = (type, count, radiusDeg) => {
-      return Array.from({ length: count }).map((_, i) => ({
-        id: `${type}-${i}`,
-        type,
-        // Start them randomly scattered at a distance
-        lat: baseLocation.lat + (Math.random() - 0.5) * radiusDeg,
-        lng: baseLocation.lng + (Math.random() - 0.5) * radiusDeg
-      }));
+      // Use pseudo-random based on index and location to prevent chaotic respawning
+      return Array.from({ length: count }).map((_, i) => {
+        const seedLat = Math.sin(baseLocation.lat * (i + 1)) * radiusDeg;
+        const seedLng = Math.cos(baseLocation.lng * (i + 1)) * radiusDeg;
+        return {
+          id: `${type}-${i}`,
+          type,
+          lat: baseLocation.lat + seedLat,
+          lng: baseLocation.lng + seedLng
+        };
+      });
     };
 
-    const tankers = generateMarkers('plane', 3, 0.4); 
-    const engines = generateMarkers('truck', 12, 0.2);
-    const crews = generateMarkers('users', 45, 0.1);
-
-    setResourceMarkers([...tankers, ...engines, ...crews]);
-  }, [baseLocation.lat, baseLocation.lng]);
+    setResourceMarkers([
+      ...generateMarkers('plane', tankerCount, 0.4),
+      ...generateMarkers('truck', engineCount, 0.2),
+      ...generateMarkers('users', crewCount, 0.1)
+    ]);
+  }, [baseLocation.lat, baseLocation.lng, Math.floor(((fireData || []).filter(c => c.intensity > 0).length) / 20)]);
 
   // Listen for AI optimization to simulate mobilizing units
   useEffect(() => {

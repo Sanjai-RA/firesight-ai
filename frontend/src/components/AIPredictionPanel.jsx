@@ -8,9 +8,9 @@ export default function AIPredictionPanel({ fireData, params }) {
     : 0.1;
 
   // Compute Risk Level dynamically
-  const riskLevel = params.windSpeed > 45 || params.temperature > 35 
+  const riskLevel = params.windSpeed > 45 || params.temperature > 35 || params.humidity < 10
     ? 'CRITICAL' 
-    : params.windSpeed > 25 
+    : params.windSpeed > 25 || params.temperature > 30 || params.humidity < 20
       ? 'HIGH' 
       : 'MODERATE';
       
