@@ -178,7 +178,7 @@ def assistant(req: AssistantRequest):
     compass = _deg_to_compass(wind_dir)
 
     # 1. Prediction / Spread Analysis
-    if "predict" in msg or "spread" in msg or "trajectory" in msg or "forecast" in msg or "where" in msg:
+    if any(k in msg for k in ["predict", "spread", "trajectory", "forecast", "where", "future"]):
         ig_x = 15 + int((abs(base_lat) * 100) % 10)
         ig_y = 15 + int((abs(base_lng) * 100) % 10)
         grid = fire_model.predict_spread(
@@ -204,7 +204,7 @@ def assistant(req: AssistantRequest):
         )
         
     # 2. Resource Allocation
-    elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg or "unit" in msg:
+    elif any(k in msg for k in ["optim", "resource", "deploy", "allocat", "unit", "asset"]):
         ig_x = 15 + int((abs(base_lat) * 100) % 10)
         ig_y = 15 + int((abs(base_lng) * 100) % 10)
         grid = fire_model.predict_spread(
@@ -229,7 +229,7 @@ def assistant(req: AssistantRequest):
         )
 
     # 3. Hotspots / High Risk Zones
-    elif any(k in msg for k in ["danger", "high risk", "hotspot", "critical", "zone"]):
+    elif any(k in msg for k in ["danger", "risk", "hotspot", "critical", "zone"]):
         return AssistantResponse(
             message=(
                 f"Detecting extreme risk zones downstream from ignition. Heavy fuel buildup combined with {wind_speed} km/h "
@@ -239,8 +239,19 @@ def assistant(req: AssistantRequest):
             mapHighlight={"lat": base_lat + 0.015, "lng": base_lng + 0.015}
         )
 
-    # 4. Evacuation
-    elif "evacuat" in msg or "escape" in msg or "route" in msg:
+    # 4. Status / Weather Conditions
+    elif any(k in msg for k in ["weather", "temp", "wind", "humid", "status", "condition"]):
+        return AssistantResponse(
+            message=(
+                f"Current telemetry: {temp}°C ambient temperature with {humidity}% relative humidity. "
+                f"Wind is steadily pushing at {wind_speed} km/h from the {compass} bearing. "
+                f"Overall strategic risk assessed as {risk_level}."
+            ),
+            action=None,
+        )
+
+    # 5. Evacuation
+    elif any(k in msg for k in ["evacuat", "escape", "route", "safe"]):
         opp_compass = _deg_to_compass(wind_dir + 180)
         return AssistantResponse(
             message=(
@@ -254,8 +265,8 @@ def assistant(req: AssistantRequest):
     else:
         return AssistantResponse(
             message=(
-                f"I am processing current variables (Wind: {wind_speed}km/h {compass}, Temp: {temp}°C, Humidity: {humidity}%). "
-                "You can ask me to 'predict spread', 'optimize resources', 'find hotspots', or determine 'evacuation routes'."
+                f"I'm continuously monitoring the {risk_level} situation. (Wind: {wind_speed}km/h {compass}, Temp: {temp}°C, Humidity: {humidity}%). "
+                "Try asking me to 'predict spread', 'optimize resources', 'show fire risk', 'how is the wind', or 'evacuation routes'."
             ),
             action=None,
         )
