@@ -257,14 +257,20 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
 
       {/* Resource Markers */}
       {resourceMarkers.map(m => {
-        let IconElement, colorClass;
-        if (m.type === 'plane') { IconElement = Plane; colorClass = 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]'; }
-        if (m.type === 'truck') { IconElement = Truck; colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'; }
-        if (m.type === 'users') { IconElement = Users; colorClass = 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]'; }
+        let IconElement, colorClass, label;
+        if (m.type === 'plane') { IconElement = Plane; colorClass = 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]'; label = 'Air Tanker'; }
+        if (m.type === 'truck') { IconElement = Truck; colorClass = 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]'; label = 'Fire Engine'; }
+        if (m.type === 'users') { IconElement = Users; colorClass = 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]'; label = 'Ground Crew'; }
         
         return (
           <Marker key={m.id} longitude={m.lng} latitude={m.lat} anchor="center">
-            <div className={`p-1.5 rounded-full ${colorClass} text-white`}>
+            <div 
+              className={`p-1.5 rounded-full ${colorClass} text-white cursor-pointer hover:scale-125 hover:shadow-[0_0_20px_rgba(255,255,255,0.7)] transition-all`}
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setPopupInfo({ type: 'resource', lng: m.lng, lat: m.lat, resource: { ...m, label }, icon: IconElement });
+              }}
+            >
               <IconElement className="w-3 h-3" />
             </div>
           </Marker>
@@ -283,36 +289,67 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
           longitude={popupInfo.lng}
           latitude={popupInfo.lat}
           anchor="bottom"
+          offset={15}
           onClose={() => setPopupInfo(null)}
           className="rounded-2xl"
           closeButton={false}
           maxWidth="260px"
         >
-          <div className="bg-dark-900 border border-white/20 p-3 rounded-xl text-white shadow-2xl text-xs w-[240px]">
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
-              <Crosshair className="w-4 h-4 text-red-500" />
-              <h4 className="font-bold">Fire Perimeter Zone</h4>
+          {popupInfo.type === 'resource' ? (
+            <div className="bg-dark-900 border border-white/20 p-3 rounded-xl text-white shadow-2xl text-xs w-[220px]">
+               <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                 <div className="p-1.5 rounded-full bg-dark-800 border border-white/10">
+                   <popupInfo.icon className="w-3 h-3 text-white" />
+                 </div>
+                 <h4 className="font-bold">{popupInfo.resource.label}</h4>
+               </div>
+               <div className="space-y-1.5 text-gray-300 mt-2">
+                 <div className="flex justify-between items-center">
+                   <span className="text-gray-500">Status</span>
+                   <span className="text-green-400 font-bold flex items-center gap-1.5">
+                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span> Active
+                   </span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-gray-500">Coords</span>
+                   <span className="font-mono text-[9px] bg-dark-800 px-1.5 py-0.5 rounded border border-white/5">
+                     {popupInfo.lat.toFixed(4)}, {popupInfo.lng.toFixed(4)}
+                   </span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-gray-500">Callsign</span>
+                   <span className="font-mono opacity-80">{popupInfo.resource.id.toUpperCase()}</span>
+                 </div>
+               </div>
             </div>
-            <div className="mb-3 text-gray-300">
-              Intensity: <strong className="text-white">{(popupInfo.intensity * 100).toFixed(0)}%</strong>
-            </div>
-            
-            <div className="uppercase text-[10px] font-bold text-gray-500 mb-1">Nearest Responders</div>
-            <div className="space-y-1.5">
-              {popupInfo.resources.map((res, i) => (
-                <div key={i} className="flex items-center justify-between bg-dark-800 p-1.5 rounded relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="flex items-center gap-2 z-10">
-                   {res.type === 'plane' && <Plane className="w-3 h-3 text-blue-400"/>}
-                   {res.type === 'truck' && <Truck className="w-3 h-3 text-red-400"/>}
-                   {res.type === 'users' && <Users className="w-3 h-3 text-yellow-500"/>}
-                   <span className="capitalize">{res.type}</span>
+          ) : (
+            <div className="bg-dark-900 border border-white/20 p-3 rounded-xl text-white shadow-2xl text-xs w-[240px]">
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                <Crosshair className="w-4 h-4 text-red-500" />
+                <h4 className="font-bold">Fire Perimeter Zone</h4>
+              </div>
+              <div className="mb-3 text-gray-300">
+                Intensity: <strong className="text-white">{(popupInfo.intensity * 100).toFixed(0)}%</strong>
+              </div>
+              
+              <div className="uppercase text-[10px] font-bold text-gray-500 mb-1">Nearest Responders</div>
+              <div className="space-y-1.5">
+                {popupInfo.resources.map((res, i) => (
+                  <div key={i} className="flex items-center justify-between bg-dark-800 hover:bg-dark-700 p-1.5 rounded relative overflow-hidden group cursor-pointer transition-colors"
+                       onClick={() => setViewState(prev => ({ ...prev, longitude: res.lng, latitude: res.lat, zoom: 14 }))}>
+                    <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="flex items-center gap-2 z-10">
+                     {res.type === 'plane' && <Plane className="w-3 h-3 text-blue-400"/>}
+                     {res.type === 'truck' && <Truck className="w-3 h-3 text-red-400"/>}
+                     {res.type === 'users' && <Users className="w-3 h-3 text-yellow-500"/>}
+                     <span className="capitalize">{res.type}</span>
+                    </div>
+                    <div className="z-10 font-mono text-[10px] text-gray-400">{res.distance.toFixed(1)} km</div>
                   </div>
-                  <div className="z-10 font-mono text-[10px] text-gray-400">{res.distance.toFixed(1)} km</div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </Popup>
       )}
     </Map>
