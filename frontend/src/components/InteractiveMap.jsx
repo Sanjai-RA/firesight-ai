@@ -4,7 +4,8 @@ import maplibregl from 'maplibre-gl';
 import { Plane, Truck, Users, Crosshair } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const WS_URL_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const WS_URL_BASE = import.meta.env.VITE_WS_URL || (API_BASE.replace(/^http/, 'ws') + '/ws/fire-data');
 
 export default function InteractiveMap({ fireData, setFireData, params, onLocationChange }) {
   const [viewState, setViewState] = useState({
