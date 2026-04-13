@@ -173,8 +173,8 @@ def assistant(req: AssistantRequest):
     base_lat   = req.context.get("baseLat", 37.7749)
     base_lng   = req.context.get("baseLng", -122.4194)
 
-    # Calculate basic risk logic dynamically
-    risk_level = "CRITICAL" if wind_speed > 40 or temp > 35 else "HIGH" if wind_speed > 25 else "MODERATE"
+    # Calculate basic risk logic dynamically to exactly match UI
+    risk_level = "CRITICAL" if (wind_speed > 45 or temp > 35 or humidity < 10) else "HIGH" if (wind_speed > 25 or temp > 30 or humidity < 20) else "MODERATE"
     compass = _deg_to_compass(wind_dir)
 
     # 1. Prediction / Spread Analysis
@@ -232,7 +232,7 @@ def assistant(req: AssistantRequest):
     elif any(k in msg for k in ["danger", "risk", "hotspot", "critical", "zone"]):
         return AssistantResponse(
             message=(
-                f"Detecting extreme risk zones downstream from ignition. Heavy fuel buildup combined with {wind_speed} km/h "
+                f"The current fire risk is classified as {risk_level}. Detecting extreme risk zones downstream from ignition. Heavy fuel buildup combined with {wind_speed} km/h "
                 f"winds from the {compass} dictates a high ROS. High-priority target highlighted on the map."
             ),
             action="highlight",

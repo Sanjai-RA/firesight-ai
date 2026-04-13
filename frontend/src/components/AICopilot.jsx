@@ -95,6 +95,12 @@ export default function AICopilot({ params, onActionTriggered }) {
       let responseText = "Agent Online [Offline Mode]. Monitoring wind vectors...";
       const t = text.toLowerCase();
 
+      const riskLevel = params.windSpeed > 45 || params.temperature > 35 || params.humidity < 10
+        ? 'CRITICAL' 
+        : params.windSpeed > 25 || params.temperature > 30 || params.humidity < 20
+          ? 'HIGH' 
+          : 'MODERATE';
+
       if (t.includes('predict') || t.includes('spread') || t.includes('forecast')) {
         responseText = `Predicted spread trajectory plotted based on current ${params.windSpeed || 20}km/h wind speeds. Escort perimeters highlighted.`;
         action = 'predict';
@@ -102,7 +108,7 @@ export default function AICopilot({ params, onActionTriggered }) {
         responseText = `Simulating resource reallocation. Redirecting air tankers to the active front. Optimizing ground payload.`;
         action = 'optimize';
       } else if (t.includes('hotspot') || t.includes('risk') || t.includes('zone') || t.includes('danger')) {
-        responseText = `Locating high-risk focal points based on terrain and weather telemetry. Check map for details.`;
+        responseText = `The current fire risk level is ${riskLevel}. Locating high-risk focal points based on terrain and weather telemetry (${params.temperature}°C, ${params.humidity}%). Check map for details.`;
         action = 'highlight';
         mapHighlight = { 
           lat: params.baseLat ? (params.baseLat + 0.01) : 37.7749, 
@@ -110,12 +116,12 @@ export default function AICopilot({ params, onActionTriggered }) {
         };
       } else if (t.includes('evacuat') || t.includes('escape') || t.includes('route') || t.includes('safe')) {
         responseText = `Evacuation routes formulated. Move perpendicular to the ${params.windDir}° wind vector to minimize exposure.`;
-      } else if (t.includes('weather') || t.includes('temp') || t.includes('wind') || t.includes('humid')) {
-        responseText = `Current conditions: ${params.temperature}°C with ${params.humidity}% humidity, driven by ${params.windSpeed} km/h winds at a ${params.windDir}° bearing.`;
+      } else if (t.includes('weather') || t.includes('temp') || t.includes('wind') || t.includes('humid') || t.includes('status')) {
+        responseText = `Current conditions: ${params.temperature}°C with ${params.humidity}% humidity, driven by ${params.windSpeed} km/h winds at a ${params.windDir}° bearing. Risk level is ${riskLevel}.`;
       } else if (t.includes('hello') || t.includes('hi') || t.includes('hey')) {
         responseText = `Hello! I'm FireSight Copilot. You can ask me to predict spread, optimize resources, check weather, or find hotspots.`;
       } else {
-        responseText = `I'm monitoring the situation. Try asking: "Predict fire spread", "Optimize resources", "Show high-risk zones", or "What are the evacuation routes?"`;
+        responseText = `I'm monitoring the ${riskLevel} situation. Try asking: "Predict fire spread", "Optimize resources", "Show fire risk", or "What are the evacuation routes?"`;
       }
 
       setIsTyping(false);
