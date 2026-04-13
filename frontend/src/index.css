@@ -2,18 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .glass {
-    @apply bg-dark-800/60 backdrop-blur-md border border-white/10 shadow-xl;
-  }
-  
-  .glass-panel {
-    @apply bg-dark-900/80 backdrop-blur-lg border border-white/5 shadow-2xl rounded-2xl;
+@layer base {
+  body {
+    @apply bg-dark-900 text-gray-200 overflow-hidden font-sans;
+    /* Custom global cursor */
+    cursor: crosshair;
   }
 }
 
-body {
-  @apply m-0 p-0 overflow-hidden bg-dark-900 text-gray-100;
+@layer utilities {
+  .glass {
+    @apply bg-dark-900/40 backdrop-blur-xl border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.5)];
+  }
+  
+  .glass-panel {
+    @apply bg-dark-800/60 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl;
+    transition: all 0.3s ease-in-out;
+  }
+  
+  .glass-panel:hover {
+    @apply shadow-2xl;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-dark-700/50 rounded-xl;
+  }
+  .skeleton::after {
+    @apply absolute inset-0 -translate-x-full;
+    content: "";
+    background-image: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0,
+      rgba(255, 255, 255, 0.05) 20%,
+      rgba(255, 255, 255, 0.1) 60%,
+      rgba(255, 255, 255, 0)
+    );
+    animation: shimmer 2s infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Custom Cursor Trail Effect */
+.cursor-blob {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 300px;
+  height: 300px;
+  background-image: radial-gradient(circle, rgba(255,69,0,0.15) 0%, rgba(255,69,0,0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s, background-image 0.3s;
+}
+
+.cursor-blob.clicking {
+  width: 150px;
+  height: 150px;
+  background-image: radial-gradient(circle, rgba(255,69,0,0.4) 0%, rgba(255,69,0,0) 70%);
+}
+
+.cursor-blob.hovering {
+  width: 400px;
+  height: 400px;
+  background-image: radial-gradient(circle, rgba(59,130,246,0.2) 0%, rgba(59,130,246,0) 70%);
 }
 
 /* Custom scrollbar */

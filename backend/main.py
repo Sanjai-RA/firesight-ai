@@ -58,8 +58,6 @@ class MultiIgnitionRequest(BaseModel):
     temperature:  float = 30.0
     humidity:     float = 15.0
 
->>>>>>> 0dee132 (feat: integrate maplibre, dynamic GPS location tracking, and IP fallback)
-
 class OptimizeRequest(BaseModel):
     prediction_grid:     List[Dict[str, Any]]
     available_resources: Dict[str, int]
@@ -168,80 +166,92 @@ def simulate(req: PredictRequest):
 @app.post("/assistant", response_model=AssistantResponse)
 def assistant(req: AssistantRequest):
     msg        = req.message.lower()
-    wind_speed = req.context.get("windSpeed", 35)
-    wind_dir   = req.context.get("windDir", 45)
-    temp       = req.context.get("temperature", 30)
-    humidity   = req.context.get("humidity", 15)
+    wind_speed = req.context.get("windSpeed", 35.0)
+    wind_dir   = req.context.get("windDir", 45.0)
+    temp       = req.context.get("temperature", 30.0)
+    humidity   = req.context.get("humidity", 15.0)
+    base_lat   = req.context.get("baseLat", 37.7749)
+    base_lng   = req.context.get("baseLng", -122.4194)
 
-    # Quick spread forecast on-demand
-    if "predict" in msg or "spread" in msg or "trajectory" in msg:
+    # Calculate basic risk logic dynamically
+    risk_level = "CRITICAL" if wind_speed > 40 or temp > 35 else "HIGH" if wind_speed > 25 else "MODERATE"
+    compass = _deg_to_compass(wind_dir)
+
+    # 1. Prediction / Spread Analysis
+    if "predict" in msg or "spread" in msg or "trajectory" in msg or "forecast" in msg or "where" in msg:
         grid = fire_model.predict_spread(
             ignition={"x": 20, "y": 20},
             wind_speed=wind_speed, wind_dir_deg=wind_dir,
             temperature=temp, humidity=humidity, hours=12,
+            base_lat=base_lat, base_lng=base_lng
         )
         area   = sum(1 for c in grid if c["intensity"] > 0)
         hot    = sum(1 for c in grid if c["intensity"] > 0.7)
         structs = sum(1 for c in grid if c["intensity"] > 0.2 and c["fuel_type"] == 4)
-        compass = _deg_to_compass(wind_dir)
+        
         return AssistantResponse(
             message=(
-                f"12-hour spread analysis complete. At {wind_speed} km/h from {compass} ({wind_dir}°), "
-                f"the fire will expand to approximately {area * 0.25:.1f} km² with {hot} high-intensity "
-                f"hotspots. {structs} structures enter the perimeter. "
-                f"Recommend immediate aerial retardant on the leading edge."
+                f"I've analyzed the 12-hour trajectory. With {temp}°C temperatures and {humidity}% humidity, "
+                f"combined with {wind_speed} km/h winds from the {compass}, the spread represents a {risk_level} threat. "
+                f"It is projected to cover {area * 0.25:.1f} km² with {hot} high-intensity hotspots, putting {structs} structures at risk. "
+                f"Immediate aerial retardant is recommended on the leading edge."
             ),
             action="predict",
             metrics={"area_km2": area * 0.25, "hotspots": hot, "structures": structs},
+            mapHighlight={"lat": base_lat + 0.02, "lng": base_lng + 0.02} # Highlight predicted leading edge
         )
-    elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg:
+        
+    # 2. Resource Allocation
+    elif "optim" in msg or "resource" in msg or "deploy" in msg or "allocat" in msg or "unit" in msg:
         grid = fire_model.predict_spread(
             ignition={"x": 20, "y": 20},
             wind_speed=wind_speed, wind_dir_deg=wind_dir,
             temperature=temp, humidity=humidity, hours=12,
+            base_lat=base_lat, base_lng=base_lng
         )
         result = fire_model.optimize_resources(
-            grid, {"air_tankers": 4, "fire_engines": 10, "ground_crews": 8, "helicopters": 3}
+            grid, {"air_tankers": 4, "fire_engines": 12, "ground_crews": 45, "helicopters": 3}
         )
         m = result["metrics"]
         return AssistantResponse(
             message=(
-                f"Optimization complete. {m['resources_deployed']} units deployed. "
-                f"Projected damage reduction: {m['damage_reduction_pct']}%. "
-                f"Priority targets: {m['structures_at_risk']} structures, est. {m['lives_at_risk_est']} lives at risk. "
-                f"Air tankers assigned to leading fire perimeter; ground crews to structure protection."
+                f"Optimization protocol executed. Based on the {risk_level} risk, I've assigned {m['resources_deployed']} total units. "
+                f"This deployment plan mitigates projected damage by {m['damage_reduction_pct']}%. "
+                f"Priority focus is on the {m['structures_at_risk']} structures at risk. Dispatching air tankers along the {compass} perimeter."
             ),
             action="optimize",
             metrics=m,
+            mapHighlight={"lat": base_lat, "lng": base_lng}
         )
 
+    # 3. Hotspots / High Risk Zones
     elif any(k in msg for k in ["danger", "high risk", "hotspot", "critical", "zone"]):
         return AssistantResponse(
             message=(
-                "High-risk zone identified at grid center (downwind sector). "
-                "Heavy timber fuel loads combined with current wind alignment create extreme ROS conditions. "
-                "Recommend backfire preparation on eastern flank."
+                f"Detecting extreme risk zones downstream from ignition. Heavy fuel buildup combined with {wind_speed} km/h "
+                f"winds from the {compass} dictates a high ROS. High-priority target highlighted on the map."
             ),
             action="highlight",
-            mapHighlight={"lat": req.context.get("baseLat", 37.7749), "lng": req.context.get("baseLng", -122.4194)}
+            mapHighlight={"lat": base_lat + 0.015, "lng": base_lng + 0.015}
         )
 
-    elif "evacuat" in msg or "escape" in msg:
+    # 4. Evacuation
+    elif "evacuat" in msg or "escape" in msg or "route" in msg:
+        opp_compass = _deg_to_compass(wind_dir + 180)
         return AssistantResponse(
             message=(
-                f"Evacuation corridors: given wind at {wind_dir}°, safest routes are perpendicular to spread axis. "
-                "Recommend northward evacuation for zones within 2km of ignition. "
-                "Trigger reverse-911 for all structure cells in the predicted 6-hour perimeter."
+                f"Evacuation corridors mapped. With wind pushing from the {compass}, the safest routes are towards the {opp_compass} "
+                "or perpendicular to the spread axis. Recommending reverse-911 for all structure zones within the 6-hour burn perimeter."
             ),
             action=None,
         )
 
+    # Fallback Catch-all
     else:
         return AssistantResponse(
             message=(
-                "FireSight AI v2 online. Commands: "
-                "'predict spread' · 'optimize resources' · 'show high-risk zones' · "
-                "'evacuation routes' · 'deploy air tankers'"
+                f"I am processing current variables (Wind: {wind_speed}km/h {compass}, Temp: {temp}°C, Humidity: {humidity}%). "
+                "You can ask me to 'predict spread', 'optimize resources', 'find hotspots', or determine 'evacuation routes'."
             ),
             action=None,
         )
@@ -275,13 +285,35 @@ manager = ConnectionManager()
 @app.websocket("/ws/fire-data")
 async def websocket_endpoint(websocket: WebSocket, lat: float = 37.7749, lng: float = -122.4194):
     await manager.connect(websocket)
+    # Give initial defaults
+    params = {
+        "wind_speed": 35.0,
+        "wind_dir_deg": 45.0,
+        "temperature": 30.0,
+        "humidity": 15.0
+    }
+    
+    # Task to listen for updates from client
+    async def listen_for_params():
+        try:
+            while True:
+                data = await websocket.receive_text()
+                new_params = json.loads(data)
+                params.update(new_params)
+        except WebSocketDisconnect:
+            pass
+
+    listener_task = asyncio.create_task(listen_for_params())
+
     try:
         hour = 1
         while True:
             grid = fire_model.predict_spread(
                 ignition={"x": 20, "y": 20},
-                wind_speed=35.0, wind_dir_deg=45.0,
-                temperature=30.0, humidity=15.0,
+                wind_speed=params["wind_speed"], 
+                wind_dir_deg=params["wind_dir_deg"],
+                temperature=params["temperature"], 
+                humidity=params["humidity"],
                 hours=hour,
                 base_lat=lat,
                 base_lng=lng
@@ -300,6 +332,7 @@ async def websocket_endpoint(websocket: WebSocket, lat: float = 37.7749, lng: fl
             await asyncio.sleep(1.5)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        listener_task.cancel()
 
 
 if __name__ == "__main__":

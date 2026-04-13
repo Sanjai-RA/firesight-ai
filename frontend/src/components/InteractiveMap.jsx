@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import Map, { Source, Layer, NavigationControl, Marker, GeolocateControl } from 'react-map-gl';
+import Map, { Source, Layer, NavigationControl, Marker, GeolocateControl, Popup } from 'react-map-gl';
 import maplibregl from 'maplibre-gl';
-import { Plane, Truck, Users } from 'lucide-react';
+import { Plane, Truck, Users, Crosshair } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const WS_URL_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/fire-data';
@@ -17,6 +17,8 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
   
   const [baseLocation, setBaseLocation] = useState({ lat: 37.7749, lng: -122.4194 });
   const [resourceMarkers, setResourceMarkers] = useState([]);
+  const [wsInstance, setWsInstance] = useState(null);
+  const [popupInfo, setPopupInfo] = useState(null);
 
   // Generate initial scattered resources when location resolves
   useEffect(() => {
@@ -116,8 +118,54 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
         console.error("WS Parse error", e);
       }
     };
+
+    setWsInstance(ws);
     return () => ws.close();
   }, [setFireData, baseLocation]);
+
+  useEffect(() => {
+    if (wsInstance && wsInstance.readyState === WebSocket.OPEN) {
+      wsInstance.send(JSON.stringify({
+        wind_speed: params.windSpeed,
+        wind_dir_deg: params.windDir,
+        temperature: params.temperature,
+        humidity: params.humidity
+      }));
+    }
+  }, [params, wsInstance]);
+
+  const handleMapClick = (e) => {
+    // Find if clicked on a heatmap point
+    const features = e.features;
+    if (features && features.length > 0) {
+      const feature = features[0];
+      const coords = feature.geometry.coordinates;
+      const pointLat = coords[1];
+      const pointLng = coords[0];
+      
+      // Calculate distances to resources
+      const R = 6371; // Earth's radius in km
+      let closestResources = [...resourceMarkers].map(res => {
+        const dLat = (res.lat - pointLat) * Math.PI / 180;
+        const dLng = (res.lng - pointLng) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(pointLat * Math.PI / 180) * Math.cos(res.lat * Math.PI / 180) *
+          Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const d = R * c; // Distance in km
+        return { ...res, distance: d };
+      }).sort((a,b) => a.distance - b.distance).slice(0, 3);
+      
+      setPopupInfo({
+        lng: pointLng,
+        lat: pointLat,
+        intensity: feature.properties.intensity,
+        resources: closestResources
+      });
+    } else {
+      setPopupInfo(null);
+    }
+  };
 
   useEffect(() => {
     const handleFocus = (e) => {
@@ -179,6 +227,8 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
       mapLib={maplibregl}
       mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
       interactiveLayerIds={['fire-heatmap']}
+      onClick={handleMapClick}
+      cursor={popupInfo ? "pointer" : "crosshair"}
     >
       <NavigationControl position="top-right" />
       <GeolocateControl 
@@ -216,6 +266,46 @@ export default function InteractiveMap({ fireData, setFireData, params, onLocati
           <Layer {...heatmapLayer} />
         </Source>
       )}
+
+      {/* Dynamic Map Popup */}
+      {popupInfo && (
+        <Popup
+          longitude={popupInfo.lng}
+          latitude={popupInfo.lat}
+          anchor="bottom"
+          onClose={() => setPopupInfo(null)}
+          className="rounded-2xl"
+          closeButton={false}
+          maxWidth="260px"
+        >
+          <div className="bg-dark-900 border border-white/20 p-3 rounded-xl text-white shadow-2xl text-xs w-[240px]">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+              <Crosshair className="w-4 h-4 text-red-500" />
+              <h4 className="font-bold">Fire Perimeter Zone</h4>
+            </div>
+            <div className="mb-3 text-gray-300">
+              Intensity: <strong className="text-white">{(popupInfo.intensity * 100).toFixed(0)}%</strong>
+            </div>
+            
+            <div className="uppercase text-[10px] font-bold text-gray-500 mb-1">Nearest Responders</div>
+            <div className="space-y-1.5">
+              {popupInfo.resources.map((res, i) => (
+                <div key={i} className="flex items-center justify-between bg-dark-800 p-1.5 rounded relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex items-center gap-2 z-10">
+                   {res.type === 'plane' && <Plane className="w-3 h-3 text-blue-400"/>}
+                   {res.type === 'truck' && <Truck className="w-3 h-3 text-red-400"/>}
+                   {res.type === 'users' && <Users className="w-3 h-3 text-yellow-500"/>}
+                   <span className="capitalize">{res.type}</span>
+                  </div>
+                  <div className="z-10 font-mono text-[10px] text-gray-400">{res.distance.toFixed(1)} km</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Popup>
+      )}
     </Map>
+
   );
 }

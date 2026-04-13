@@ -5,9 +5,15 @@ import { Activity, Wind, TrendingUp, AlertTriangle } from 'lucide-react';
 export default function AIPredictionPanel({ fireData, params }) {
   const maxIntensity = fireData.length > 0 
     ? Math.max(...fireData.map(d => d.intensity)) 
-    : 0;
+    : 0.1;
 
-  const riskLevel = maxIntensity > 0.8 ? 'CRITICAL' : maxIntensity > 0.5 ? 'HIGH' : maxIntensity > 0 ? 'MODERATE' : 'LOW';
+  // Compute Risk Level dynamically
+  const riskLevel = params.windSpeed > 45 || params.temperature > 35 
+    ? 'CRITICAL' 
+    : params.windSpeed > 25 
+      ? 'HIGH' 
+      : 'MODERATE';
+      
   const riskColor = riskLevel === 'CRITICAL' ? 'text-red-500' : riskLevel === 'HIGH' ? 'text-fire-500' : 'text-yellow-500';
 
   const getCompassDirection = (deg) => {
@@ -17,12 +23,17 @@ export default function AIPredictionPanel({ fireData, params }) {
 
   const spreadDirection = params.windDir;
   
-  // Create a dynamic intensity sequence influenced by the wind speed to make it look realistic and dynamic
+  // Realistically model intensities scaling with wind speed, temperature, and hours
   const dynamicIntensities = Array.from({ length: 12 }).map((_, i) => {
-    let base = 20 + (i * 6);
-    let fluctuations = Math.sin(i + (params.windSpeed * 0.1)) * 10;
-    let value = Math.max(0, Math.min(100, base + fluctuations));
-    return value;
+    // base exponential growth
+    let base = 10 * Math.exp(i * 0.15);
+    // adjust with wind and temperature
+    let envMultiplier = 1 + (params.windSpeed * 0.01) + (params.temperature * 0.005);
+    base *= envMultiplier;
+    
+    // add minor noise
+    let fluctuations = Math.sin(i * 1.5) * 5;
+    return Math.max(0, Math.min(100, base + fluctuations));
   });
 
   return (
@@ -44,8 +55,8 @@ export default function AIPredictionPanel({ fireData, params }) {
         <div className="bg-dark-800/80 rounded-xl p-4 border border-white/10 shadow-lg">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">AI Forecast Analysis</h3>
           <p className="text-sm text-gray-200 leading-relaxed">
-            The fire is projected to spread <strong className="text-white">{getCompassDirection(params.windDir)}</strong> driven by <strong className="text-white">{params.windSpeed} km/h</strong> winds. 
-            Immediate risk classified as <strong className={`${riskColor} font-bold`}>{riskLevel}</strong> for downtown sectors.
+            Rapid propagation expected towards the <strong className="text-white">{getCompassDirection(params.windDir)}</strong> driven by <strong className="text-white">{params.windSpeed} km/h</strong> winds. 
+            Due to the extreme condition ({params.temperature}°C), overall strategic risk is upgraded to <strong className={`${riskColor} font-bold animate-pulse`}>{riskLevel}</strong>.
           </p>
         </div>
 

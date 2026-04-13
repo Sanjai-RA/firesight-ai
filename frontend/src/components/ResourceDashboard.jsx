@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plane, Truck, Users, Cpu, CheckCircle } from 'lucide-react';
 
-export default function ResourceDashboard() {
+export default function ResourceDashboard({ fireData }) {
   const [optimizing, setOptimizing] = useState(false);
   const [optimized, setOptimized] = useState(false);
+  const [metrics, setMetrics] = useState(null);
+  
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   
   const resources = [
     { name: 'Air Tankers', count: 3, icon: <Plane className="w-4 h-4 text-white" />, colorClass: 'bg-blue-500/80 shadow-[0_0_10px_rgba(59,130,246,0.6)]' },
@@ -12,13 +15,34 @@ export default function ResourceDashboard() {
     { name: 'Ground Crew', count: 45, icon: <Users className="w-4 h-4 text-white" />, colorClass: 'bg-yellow-600/80 shadow-[0_0_10px_rgba(202,138,4,0.6)]' },
   ];
 
-  const handleOptimize = () => {
+  const handleOptimize = async () => {
     if (optimizing || optimized) return;
     setOptimizing(true);
-    setTimeout(() => {
+    
+    try {
+      const response = await fetch(`${API_URL}/optimize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prediction_grid: fireData || [],
+          available_resources: { air_tankers: 3, fire_engines: 12, ground_crews: 45, helicopters: 2 }
+        })
+      });
+      
+      if (!response.ok) throw new Error("Optimization failed");
+      const data = await response.json();
+      
+      setTimeout(() => {
+        setMetrics(data.metrics);
+        setOptimizing(false);
+        setOptimized(true);
+      }, 800); // add slight delay for UX
+    } catch (err) {
+      console.error(err);
       setOptimizing(false);
-      setOptimized(true);
-    }, 2000);
+    }
   };
 
   useEffect(() => {
@@ -84,14 +108,15 @@ export default function ResourceDashboard() {
         )}
       </button>
 
-      {optimized && (
+      {optimized && metrics && (
         <motion.div 
           className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-xs text-green-300"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="flex justify-between mb-1"><span>Damage Reduced:</span> <span className="font-bold">-34%</span></div>
-          <div className="flex justify-between"><span>Efficiency:</span> <span className="font-bold">98.2%</span></div>
+          <div className="flex justify-between mb-1"><span>Risk Score:</span> <span className="font-bold">{metrics.mitigated_risk_score}</span></div>
+          <div className="flex justify-between mb-1"><span>Damage Reduced:</span> <span className="font-bold">{(metrics.damage_reduction_pct || 0).toFixed(1)}%</span></div>
+          <div className="flex justify-between"><span>Structures At Risk:</span> <span className="font-bold">{metrics.structures_at_risk}</span></div>
         </motion.div>
       )}
     </motion.div>

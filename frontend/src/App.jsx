@@ -55,12 +55,33 @@ function App() {
     }
   };
 
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [isClicking, setIsClicking] = useState(false);
+
+  useEffect(() => {
+    const handleMouseMove = (e) => setCursorPos({ x: e.clientX, y: e.clientY });
+    const handleMouseDown = () => setIsClicking(true);
+    const handleMouseUp = () => setIsClicking(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   if (!appStarted) {
     return <Hero onStart={() => setAppStarted(true)} />;
   }
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-dark-900 text-white font-sans flex text-sm">
+      <div 
+        className={`cursor-blob ${isClicking ? 'clicking' : ''}`}
+        style={{ left: cursorPos.x, top: cursorPos.y }}
+      />
       {/* Absolute Map Background */}
       <div className="absolute inset-0 z-0">
         <InteractiveMap 
@@ -98,7 +119,7 @@ function App() {
       {/* Left Sidebar - Simulation Controls */}
       <div className="absolute left-6 top-24 bottom-6 w-80 z-10 flex flex-col gap-6">
         <SimulatorControls params={simulationParams} setParams={setSimulationParams} />
-        <ResourceDashboard />
+        <ResourceDashboard fireData={fireData} params={simulationParams} />
       </div>
 
       {/* Right Sidebar - AI Predictions */}
