@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Hero from './components/Hero';
 import InteractiveMap from './components/InteractiveMap';
 import AIPredictionPanel from './components/AIPredictionPanel';
